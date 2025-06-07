@@ -1,10 +1,12 @@
+package com.example.cp3406_getitdone
+
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.*
@@ -25,13 +27,13 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun SimpleApp() {
-    var selectedScreen by remember { mutableStateOf(0) }
+    var selectedScreen by remember { mutableIntStateOf(0) }
 
     Scaffold(
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.List, contentDescription = "Tasks") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Tasks") },
                     selected = selectedScreen == 0,
                     onClick = { selectedScreen = 0 },
                     label = { Text("Tasks") }
