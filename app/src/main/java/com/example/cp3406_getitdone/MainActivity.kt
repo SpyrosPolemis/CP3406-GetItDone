@@ -65,15 +65,53 @@ fun SimpleApp() {
 
 @Composable
 fun ShortTermTaskScreen() {
+    val taskList = remember { mutableStateListOf("Buy milk", "Study Compose", "Go for a walk") }
+    var newTask by remember { mutableStateOf("") }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text("Today's Tasks", fontSize = 20.sp)
+
+        Row {
+            TextField(
+                value = newTask,
+                onValueChange = { newTask = it },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("New task") }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Button(onClick = {
+                if (newTask.isNotBlank()) {
+                    taskList.add(newTask)
+                    newTask = ""
+                }
+            }) {
+                Text("Add")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            taskList.forEachIndexed { index, task ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(task, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { taskList.removeAt(index) }) {
+                        Icon(Icons.Default.Lock, contentDescription = "Delete")
+                    }
+                }
+            }
+        }
     }
 }
+
 
 @Composable
 fun PlaceholderScreen(text: String) {
