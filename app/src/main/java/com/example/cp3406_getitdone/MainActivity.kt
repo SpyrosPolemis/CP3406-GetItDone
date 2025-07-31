@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.*
@@ -16,6 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.tooling.preview.Preview
+import android.widget.DatePicker
+import java.util.Locale
+import java.util.Date
+import kotlin.text.format
+import java.util.Calendar
+import java.text.SimpleDateFormat
+import android.app.DatePickerDialog
+import androidx.compose.ui.platform.LocalContext
+
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,13 +73,21 @@ fun SimpleApp() {
     }
 }
 
+data class Task(
+    val title: String,
+    val priority: Int,
+    val dueDate: Date?
+)
+
 @Composable
 fun ShortTermTaskScreen() {
-    var priority by remember { mutableStateOf(1) }
-
-    data class Task(val title: String, val priority: Int)
     val taskList = remember { mutableStateListOf<Task>() }
     var newTask by remember { mutableStateOf("") }
+    var priority by remember { mutableStateOf(1) }
+
+    val calendar = remember { Calendar.getInstance() }
+    var dueDate by remember { mutableStateOf<Date?>(null) }
+    val context = LocalContext.current
 
     Column(
         modifier = Modifier
@@ -90,26 +107,48 @@ fun ShortTermTaskScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTask.isNotBlank()) {
-                    taskList.add(Task(newTask, priority))
+                    taskList.add(Task(newTask, priority, dueDate))
                     newTask = ""
                     priority = 1
+                    dueDate = null
                 }
             }) {
                 Text("Add")
             }
         }
+
         Column {
             Text("Priority: $priority")
             Slider(
                 value = priority.toFloat(),
                 onValueChange = { priority = it.toInt() },
                 valueRange = 1f..5f,
-                steps = 3 // 1–5 means 4 intervals, 3 steps in between
+                steps = 3
             )
         }
 
+        Button(onClick = {
+            val today = calendar
+            DatePickerDialog(
+                context,
+                { view: DatePicker, year: Int, month: Int, dayOfMonth: Int -> // Explicitly type 'view'
+                    calendar.set(year, month, dayOfMonth)
+                    dueDate = calendar.time
+                },
+                today.get(Calendar.YEAR),
+                today.get(Calendar.MONTH),
+                today.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }) {
+            Text(
+                if (dueDate != null)
+                    "Due Date: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(dueDate!!)}"
+                else
+                    "Pick Due Date"
+            )
+        }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             taskList.forEachIndexed { index, task ->
@@ -117,15 +156,23 @@ fun ShortTermTaskScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("${task.title} (Priority ${task.priority})", modifier = Modifier.weight(1f))
+                    val dateText = task.dueDate?.let {
+                        SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
+                    } ?: "No date"
+
+                    Text(
+                        "${task.title} (P${task.priority}, $dateText)",
+                        modifier = Modifier.weight(1f)
+                    )
                     IconButton(onClick = { taskList.removeAt(index) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete")
+                        Icon(Icons.Default.Lock, contentDescription = "Delete")
                     }
                 }
             }
         }
     }
 }
+
 
 
 @Composable
