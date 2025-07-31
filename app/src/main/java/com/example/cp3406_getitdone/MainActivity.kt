@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.*
@@ -65,7 +66,10 @@ fun SimpleApp() {
 
 @Composable
 fun ShortTermTaskScreen() {
-    val taskList = remember { mutableStateListOf("Buy milk", "Study Compose", "Go for a walk") }
+    var priority by remember { mutableStateOf(1) }
+
+    data class Task(val title: String, val priority: Int)
+    val taskList = remember { mutableStateListOf<Task>() }
     var newTask by remember { mutableStateOf("") }
 
     Column(
@@ -86,13 +90,24 @@ fun ShortTermTaskScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTask.isNotBlank()) {
-                    taskList.add(newTask)
+                    taskList.add(Task(newTask, priority))
                     newTask = ""
+                    priority = 1
                 }
             }) {
                 Text("Add")
             }
         }
+        Column {
+            Text("Priority: $priority")
+            Slider(
+                value = priority.toFloat(),
+                onValueChange = { priority = it.toInt() },
+                valueRange = 1f..5f,
+                steps = 3 // 1–5 means 4 intervals, 3 steps in between
+            )
+        }
+
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -102,9 +117,9 @@ fun ShortTermTaskScreen() {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(task, modifier = Modifier.weight(1f))
+                    Text("${task.title} (Priority ${task.priority})", modifier = Modifier.weight(1f))
                     IconButton(onClick = { taskList.removeAt(index) }) {
-                        Icon(Icons.Default.Lock, contentDescription = "Delete")
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
                     }
                 }
             }
