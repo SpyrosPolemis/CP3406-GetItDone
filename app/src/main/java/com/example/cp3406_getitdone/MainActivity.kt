@@ -22,6 +22,7 @@ import kotlin.text.format
 import java.util.Calendar
 import java.text.SimpleDateFormat
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.ui.platform.LocalContext
 
 
@@ -76,7 +77,8 @@ fun SimpleApp() {
 data class Task(
     val title: String,
     val priority: Int,
-    val dueDate: Date?
+    val dueDate: Date?,
+    val dueTime: Pair<Int, Int>?
 )
 
 @Composable
@@ -87,6 +89,7 @@ fun ShortTermTaskScreen() {
 
     val calendar = remember { Calendar.getInstance() }
     var dueDate by remember { mutableStateOf<Date?>(null) }
+    var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) } // hour, minute
     val context = LocalContext.current
 
     Column(
@@ -107,10 +110,11 @@ fun ShortTermTaskScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTask.isNotBlank()) {
-                    taskList.add(Task(newTask, priority, dueDate))
+                    taskList.add(Task(newTask, priority, dueDate, dueTime))
                     newTask = ""
                     priority = 1
                     dueDate = null
+                    dueTime = null
                 }
             }) {
                 Text("Add")
@@ -148,6 +152,26 @@ fun ShortTermTaskScreen() {
             )
         }
 
+        Button(onClick = {
+            val now = Calendar.getInstance()
+            TimePickerDialog(
+                context,
+                { _, hourOfDay, minute ->
+                    dueTime = hourOfDay to minute
+                },
+                now.get(Calendar.HOUR_OF_DAY),
+                now.get(Calendar.MINUTE),
+                true
+            ).show()
+        }) {
+            Text(
+                if (dueTime != null)
+                    "Due Time: %02d:%02d".format(dueTime!!.first, dueTime!!.second)
+                else
+                    "Pick Due Time"
+            )
+        }
+
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -160,8 +184,12 @@ fun ShortTermTaskScreen() {
                         SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
                     } ?: "No date"
 
+                    val timeText = task.dueTime?.let {
+                        "%02d:%02d".format(it.first, it.second)
+                    } ?: "No time"
+
                     Text(
-                        "${task.title} (P${task.priority}, $dateText)",
+                        "${task.title} (P${task.priority}, $dateText $timeText)",
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { taskList.removeAt(index) }) {
