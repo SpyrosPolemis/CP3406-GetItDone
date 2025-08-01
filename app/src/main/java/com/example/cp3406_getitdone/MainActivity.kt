@@ -23,18 +23,33 @@ import java.util.Calendar
 import java.text.SimpleDateFormat
 import android.app.DatePickerDialog
 import android.app.TimePickerDialog
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
-
+import android.app.AlarmManager
+import android.app.PendingIntent
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.widget.Toast
+import androidx.compose.material.icons.filled.Delete
 
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1001)
+            }
+        }
+
         setContent {
             SimpleApp()
         }
     }
 }
+
 
 @Composable
 fun SimpleApp() {
@@ -110,11 +125,14 @@ fun ShortTermTaskScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTask.isNotBlank()) {
-                    taskList.add(Task(newTask, priority, dueDate, dueTime))
+                    val task = Task(newTask, priority, dueDate, dueTime)
+                    taskList.add(task)
+                    scheduleReminder(context, task) // 🔥 schedule the alarm
                     newTask = ""
                     priority = 1
                     dueDate = null
                     dueTime = null
+
                 }
             }) {
                 Text("Add")
@@ -193,7 +211,7 @@ fun ShortTermTaskScreen() {
                         modifier = Modifier.weight(1f)
                     )
                     IconButton(onClick = { taskList.removeAt(index) }) {
-                        Icon(Icons.Default.Lock, contentDescription = "Delete")
+                        Icon(Icons.Default.Delete, contentDescription = "Delete")
                     }
                 }
             }
@@ -201,6 +219,43 @@ fun ShortTermTaskScreen() {
     }
 }
 
+fun scheduleReminder(context: Context, task: Task) {
+    val date = task.dueDate ?: return
+    val (hour, minute) = task.dueTime ?: return
+
+    val cal = Calendar.getInstance().apply {
+        time = date
+        set(Calendar.HOUR_OF_DAY, hour)
+        set(Calendar.MINUTE, minute)
+        set(Calendar.SECOND, 0)
+    }
+
+    cal.add(Calendar.MINUTE, -30) // 30 minutes before
+
+    val intent = Intent(context, ReminderReceiver::class.java).apply {
+        putExtra("title", task.title)
+    }
+
+    val pendingIntent = PendingIntent.getBroadcast(
+        context,
+        cal.timeInMillis.toInt(),
+        intent,
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+    try {
+        alarmManager.setExact(
+            AlarmManager.RTC_WAKEUP,
+            cal.timeInMillis,
+            pendingIntent
+        )
+    } catch (e: SecurityException) {
+        e.printStackTrace()
+        Toast.makeText(context, "Exact alarms not permitted", Toast.LENGTH_SHORT).show()
+    }
+
+}
 
 
 @Composable
