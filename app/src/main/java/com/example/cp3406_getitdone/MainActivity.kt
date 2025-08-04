@@ -103,14 +103,15 @@ data class Task(
 fun ShortTermTaskScreen() {
     val taskList = remember { mutableStateListOf<Task>() }
     var newTask by remember { mutableStateOf("") }
-    var priority by remember { mutableStateOf(1) }
+    var priority by remember { mutableIntStateOf(1) }
     var notify by remember { mutableStateOf(false) }
-    var reminderOffset by remember { mutableStateOf(30) } // minutes
+    var reminderOffset by remember { mutableIntStateOf(30) } // minutes
 
     val calendar = remember { Calendar.getInstance() }
     var dueDate by remember { mutableStateOf<Date?>(null) }
     var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) } // hour, minute
     val context = LocalContext.current
+
 
     Column(
         modifier = Modifier
@@ -158,16 +159,15 @@ fun ShortTermTaskScreen() {
 
         // Pick Due Date
         Button(onClick = {
-            val today = calendar
             DatePickerDialog(
                 context,
-                { view: DatePicker, year: Int, month: Int, dayOfMonth: Int -> // Explicitly type 'view'
+                { _: DatePicker, year: Int, month: Int, dayOfMonth: Int -> // Explicitly type 'view'
                     calendar.set(year, month, dayOfMonth)
                     dueDate = calendar.time
                 },
-                today.get(Calendar.YEAR),
-                today.get(Calendar.MONTH),
-                today.get(Calendar.DAY_OF_MONTH)
+                calendar.get(Calendar.YEAR),
+                calendar.get(Calendar.MONTH),
+                calendar.get(Calendar.DAY_OF_MONTH)
             ).show()
         }) {
             Text(
@@ -228,7 +228,7 @@ fun ShortTermTaskScreen() {
         }
 
 
-        Divider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             taskList.forEachIndexed { index, task ->
@@ -283,7 +283,7 @@ fun scheduleReminder(context: Context, task: Task) {
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+    val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     try {
         alarmManager.setExact(
             AlarmManager.RTC_WAKEUP,
