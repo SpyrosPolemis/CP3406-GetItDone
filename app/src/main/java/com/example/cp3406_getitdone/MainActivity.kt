@@ -31,6 +31,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.filled.Delete
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Add
@@ -38,12 +39,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.ViewModelProvider
+import androidx.compose.foundation.lazy.items
+
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var db: AppDatabase
     private lateinit var taskDao: TaskDao
     private lateinit var taskViewModel: TaskViewModel
+    private lateinit var goalViewModel: GoalViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,14 +65,18 @@ class MainActivity : ComponentActivity() {
         val factory = TaskViewModelFactory(repository)
         taskViewModel = ViewModelProvider(this, factory)[TaskViewModel::class.java]
 
+        val goalRepository = GoalRepository(db.goalDao())
+        val goalFactory = GoalViewModelFactory(goalRepository)
+        goalViewModel = ViewModelProvider(this, goalFactory)[GoalViewModel::class.java]
+
         setContent {
-            SimpleApp(taskViewModel) // pass the ViewModel here instead of DAO
+            SimpleApp(taskViewModel, goalViewModel) // pass the ViewModel here instead of DAO
         }
     }
 }
 
 @Composable
-fun SimpleApp(taskViewModel: TaskViewModel) {
+fun SimpleApp(taskViewModel: TaskViewModel, goalViewModel: GoalViewModel) {
     var selectedScreen by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -98,7 +106,7 @@ fun SimpleApp(taskViewModel: TaskViewModel) {
         Box(modifier = Modifier.padding(padding)) {
             when (selectedScreen) {
                 0 -> ShortTermTaskScreen(taskViewModel)
-                1 -> PlaceholderScreen("Goals & Habits Coming Soon")
+                1 -> GoalScreen(goalViewModel)
                 2 -> PlaceholderScreen("Focus Mode Coming Soon")
             }
         }
@@ -511,6 +519,79 @@ fun scheduleReminder(context: Context, task: Task) {
     }
 }
 
+@Composable
+fun GoalScreen(goalViewModel: GoalViewModel) {
+    val goals by goalViewModel.allGoals.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        Text("Goals", style = MaterialTheme.typography.headlineMedium)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyColumn {
+            items(goals) { goal ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(goal.goalTitle, style = MaterialTheme.typography.titleMedium)
+                        Text("Due: ${goal.goaldueDate}", style = MaterialTheme.typography.bodySmall)
+                        if (!goal.habitDescription.isNullOrEmpty()) {
+                            Text(goal.habitDescription, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Add Goal Form
+        var title by remember { mutableStateOf("") }
+        var dueDate by remember { mutableStateOf<Date?>(null) }
+        var habitDesc by remember { mutableStateOf("") }
+        var freqPerWeek by remember { mutableStateOf(3) }
+        var reason by remember { mutableStateOf("") }
+
+        OutlinedTextField(
+            value = title,
+            onValueChange = { title = it },
+            label = { Text("Goal Title") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = habitDesc,
+            onValueChange = { habitDesc = it },
+            label = { Text("Notes (Optional)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = {
+                val goal = GoalEntity(
+                    goalTitle = title,
+                    goaldueDate = dueDate ?: Date(),
+                    habitDescription = habitDesc,
+                    habitFrequencyPerWeek = freqPerWeek,
+                    goalReason = reason
+                )
+                goalViewModel.addGoal(goal)
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 8.dp)
+        ) {
+            Text("Add Goal")
+        }
+    }
+}
 
 
 @Composable
