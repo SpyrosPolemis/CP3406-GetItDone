@@ -93,14 +93,19 @@ data class Task(
     val title: String,
     val priority: Int,
     val dueDate: Date?,
-    val dueTime: Pair<Int, Int>?
+    val dueTime: Pair<Int, Int>?,
+    val notify: Boolean = false,
+    val reminderOffsetMinutes: Int = 30 // default to 30 minutes before
 )
+
 
 @Composable
 fun ShortTermTaskScreen() {
     val taskList = remember { mutableStateListOf<Task>() }
     var newTask by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf(1) }
+    var notify by remember { mutableStateOf(false) }
+    var reminderOffset by remember { mutableStateOf(30) } // minutes
 
     val calendar = remember { Calendar.getInstance() }
     var dueDate by remember { mutableStateOf<Date?>(null) }
@@ -125,20 +130,22 @@ fun ShortTermTaskScreen() {
             Spacer(modifier = Modifier.width(8.dp))
             Button(onClick = {
                 if (newTask.isNotBlank()) {
-                    val task = Task(newTask, priority, dueDate, dueTime)
+                    val task = Task(newTask, priority, dueDate, dueTime, notify, reminderOffset)
                     taskList.add(task)
-                    scheduleReminder(context, task) // 🔥 schedule the alarm
+                    scheduleReminder(context, task)
                     newTask = ""
                     priority = 1
                     dueDate = null
                     dueTime = null
-
+                    notify = false
+                    reminderOffset = 30
                 }
             }) {
                 Text("Add")
             }
         }
 
+        // Priority Slider
         Column {
             Text("Priority: $priority")
             Slider(
@@ -149,6 +156,7 @@ fun ShortTermTaskScreen() {
             )
         }
 
+        // Pick Due Date
         Button(onClick = {
             val today = calendar
             DatePickerDialog(
@@ -170,6 +178,7 @@ fun ShortTermTaskScreen() {
             )
         }
 
+        // Pick Due Time
         Button(onClick = {
             val now = Calendar.getInstance()
             TimePickerDialog(
@@ -189,6 +198,35 @@ fun ShortTermTaskScreen() {
                     "Pick Due Time"
             )
         }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Notify me", modifier = Modifier.weight(1f))
+            Switch(checked = notify, onCheckedChange = { notify = it })
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text("Reminder time before due:")
+        val offsetOptions = listOf(5, 10, 30, 60, 180, 1440) // up to 24 hours (in mins)
+        var expanded by remember { mutableStateOf(false) }
+
+        Box {
+            Button(onClick = { expanded = true }) {
+                Text("$reminderOffset minutes before")
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                offsetOptions.forEach { minutes ->
+                    DropdownMenuItem(onClick = {
+                        reminderOffset = minutes
+                        expanded = false
+                    }, text = { Text("$minutes minutes before") })
+                }
+            }
+        }
+
 
         Divider(modifier = Modifier.padding(vertical = 8.dp))
 
@@ -220,6 +258,8 @@ fun ShortTermTaskScreen() {
 }
 
 fun scheduleReminder(context: Context, task: Task) {
+    if (!task.notify) return // User selects notification or not
+
     val date = task.dueDate ?: return
     val (hour, minute) = task.dueTime ?: return
 
@@ -230,7 +270,7 @@ fun scheduleReminder(context: Context, task: Task) {
         set(Calendar.SECOND, 0)
     }
 
-    cal.add(Calendar.MINUTE, -30) // 30 minutes before
+    cal.add(Calendar.MINUTE, -task.reminderOffsetMinutes) // User selects offset
 
     val intent = Intent(context, ReminderReceiver::class.java).apply {
         putExtra("title", task.title)
@@ -254,8 +294,8 @@ fun scheduleReminder(context: Context, task: Task) {
         e.printStackTrace()
         Toast.makeText(context, "Exact alarms not permitted", Toast.LENGTH_SHORT).show()
     }
-
 }
+
 
 
 @Composable
