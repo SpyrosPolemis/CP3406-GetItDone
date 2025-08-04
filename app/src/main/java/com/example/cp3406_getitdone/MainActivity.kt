@@ -206,52 +206,137 @@ fun MainTaskList(
     onDelete: (Int) -> Unit,
     onFabClick: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Today's Tasks", fontSize = 20.sp)
-                IconButton(onClick = onFabClick) {
-                    Icon(Icons.Default.Add, contentDescription = "Add Task")
-                }
-            }
+    val now = remember { Calendar.getInstance() }
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+    val today = now.clone() as Calendar
+    today.set(Calendar.HOUR_OF_DAY, 0)
+    today.set(Calendar.MINUTE, 0)
+    today.set(Calendar.SECOND, 0)
+    today.set(Calendar.MILLISECOND, 0)
 
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                taskList.sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
-                    .forEachIndexed { index, task ->
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            val dateText = task.dueDate?.let {
-                                SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
-                            } ?: "No date"
+    val endOfToday = today.clone() as Calendar
+    endOfToday.add(Calendar.DAY_OF_YEAR, 1)
 
-                            val timeText = task.dueTime?.let {
-                                "%02d:%02d".format(it.first, it.second)
-                            } ?: "No time"
+    val endOfWeek = today.clone() as Calendar
+    endOfWeek.add(Calendar.DAY_OF_YEAR, 7)
 
-                            val notifText = if (task.notify) "🔔 ${task.reminderOffsetMinutes} min" else ""
+    val endOfMonth = today.clone() as Calendar
+    endOfMonth.add(Calendar.MONTH, 1)
 
-                            Text(
-                                "${task.title} (P${task.priority}, $dateText $timeText) $notifText",
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(onClick = { onDelete(index) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete")
-                            }
-                        }
-                    }
+    val (dueToday, dueThisWeek, dueThisMonth, later) = taskList.sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
+        .partitionByTime(today.time, endOfToday.time, endOfWeek.time, endOfMonth.time)
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        HeaderWithAddButton("Today's Tasks", onFabClick)
+        TaskSection("Due Today", dueToday, onDelete)
+        TaskSection("Due This Week", dueThisWeek, onDelete, startIndex = dueToday.size)
+        TaskSection("Due This Month", dueThisMonth, onDelete, startIndex = dueToday.size + dueThisWeek.size)
+        TaskSection("Due in a Long Time", later, onDelete, startIndex = dueToday.size + dueThisWeek.size + dueThisMonth.size)
+    }
+}
+
+@Composable
+fun HeaderWithAddButton(title: String, onFabClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(title, fontSize = 20.sp)
+        IconButton(onClick = onFabClick) {
+            Icon(Icons.Default.Add, contentDescription = "Add Task")
+        }
+    }
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+}
+
+@Composable
+fun TaskSection(
+    sectionTitle: String,
+    tasks: List<Task>,
+    onDelete: (Int) -> Unit,
+    startIndex: Int = 0
+) {
+    if (tasks.isNotEmpty()) {
+        Text(sectionTitle, fontSize = 16.sp, modifier = Modifier.padding(vertical = 8.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            tasks.forEachIndexed { index, task ->
+                TaskCard(task = task, onDelete = { onDelete(startIndex + index) })
             }
         }
     }
 }
 
+@Composable
+fun TaskCard(task: Task, onDelete: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(12.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val dateText = task.dueDate?.let {
+                SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
+            } ?: "No date"
+
+            val timeText = task.dueTime?.let {
+                "%02d:%02d".format(it.first, it.second)
+            } ?: "No time"
+
+            val notifText = if (task.notify) "🔔 ${task.reminderOffsetMinutes} min" else ""
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(task.title, style = MaterialTheme.typography.titleMedium)
+                Text("P${task.priority} • $dateText $timeText $notifText", style = MaterialTheme.typography.bodySmall)
+            }
+
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete")
+            }
+        }
+    }
+}
+
+fun List<Task>.partitionByTime(
+    today: Date,
+    endOfToday: Date,
+    endOfWeek: Date,
+    endOfMonth: Date
+): Quadruple<List<Task>, List<Task>, List<Task>, List<Task>> {
+    val todayList = mutableListOf<Task>()
+    val weekList = mutableListOf<Task>()
+    val monthList = mutableListOf<Task>()
+    val laterList = mutableListOf<Task>()
+
+    for (task in this) {
+        val date = task.dueDate
+        if (date == null) {
+            laterList.add(task)
+        } else if (date.before(endOfToday)) {
+            todayList.add(task)
+        } else if (date.before(endOfWeek)) {
+            weekList.add(task)
+        } else if (date.before(endOfMonth)) {
+            monthList.add(task)
+        } else {
+            laterList.add(task)
+        }
+    }
+
+    return Quadruple(todayList, weekList, monthList, laterList)
+}
+
+data class Quadruple<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
 
 // You'll need to create this extension function to convert from TaskEntity to Task data class
 fun TaskEntity.toTask() = Task(
