@@ -1,3 +1,5 @@
+@file:OptIn(ExperimentalMaterial3Api::class)
+
 package com.example.cp3406_getitdone
 
 import android.os.Bundle
@@ -32,6 +34,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import androidx.compose.material.icons.filled.Delete
+import kotlinx.coroutines.launch
+import androidx.compose.material.icons.filled.Add
+
 
 
 class MainActivity : ComponentActivity() {
@@ -100,91 +105,203 @@ data class Task(
 
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun ShortTermTaskScreen() {
     val taskList = remember { mutableStateListOf<Task>() }
     var newTask by remember { mutableStateOf("") }
     var priority by remember { mutableIntStateOf(1) }
     var notify by remember { mutableStateOf(false) }
-    var reminderOffset by remember { mutableIntStateOf(30) } // minutes
+    var reminderOffset by remember { mutableIntStateOf(30) }
 
     val calendar = remember { Calendar.getInstance() }
     var dueDate by remember { mutableStateOf<Date?>(null) }
-    var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) } // hour, minute
+    var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+
     val context = LocalContext.current
 
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    var showBottomSheet by remember { mutableStateOf(false) }
+
+    if (showBottomSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                scope.launch { sheetState.hide() }.invokeOnCompletion {
+                    showBottomSheet = false
+                }
+            },
+            sheetState = sheetState
+        ) {
+            TaskInputForm(
+                newTask = newTask,
+                onTaskChange = { newTask = it },
+                priority = priority,
+                onPriorityChange = { priority = it },
+                dueDate = dueDate,
+                onDateChange = { dueDate = it },
+                dueTime = dueTime,
+                onTimeChange = { dueTime = it },
+                notify = notify,
+                onNotifyChange = { notify = it },
+                reminderOffset = reminderOffset,
+                onReminderOffsetChange = { reminderOffset = it },
+                onAddClick = {
+                    if (newTask.isNotBlank()) {
+                        val task = Task(newTask, priority, dueDate, dueTime, notify, reminderOffset)
+                        taskList.add(task)
+                        scheduleReminder(context, task)
+
+                        // Reset form
+                        newTask = ""
+                        priority = 1
+                        dueDate = null
+                        dueTime = null
+                        notify = false
+                        reminderOffset = 30
+
+                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                            showBottomSheet = false
+                        }
+                    }
+                }
+            )
+        }
+    }
+
+    // Main content with FAB
+    MainTaskList(
+        taskList = taskList,
+        onDelete = { index -> taskList.removeAt(index) },
+        onFabClick = {
+            showBottomSheet = true
+            scope.launch { sheetState.show() }
+        }
+    )
+}
+
+@Composable
+fun MainTaskList(
+    taskList: List<Task>,
+    onDelete: (Int) -> Unit,
+    onFabClick: () -> Unit
+) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Today's Tasks", fontSize = 20.sp)
+                IconButton(onClick = onFabClick) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Task")
+                }
+            }
+
+            Divider(modifier = Modifier.padding(vertical = 8.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                taskList
+                    .sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
+                    .forEachIndexed { index, task ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            val dateText = task.dueDate?.let {
+                                SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
+                            } ?: "No date"
+
+                            val timeText = task.dueTime?.let {
+                                "%02d:%02d".format(it.first, it.second)
+                            } ?: "No time"
+
+                            val notifText = if (task.notify)
+                                "🔔 ${task.reminderOffsetMinutes} min"
+                            else ""
+
+                            Text(
+                                "${task.title} (P${task.priority}, $dateText $timeText) $notifText",
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(onClick = { onDelete(index) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete")
+                            }
+                        }
+                    }
+            }
+        }
+    }
+}
+
+
+@Composable
+fun TaskInputForm(
+    newTask: String,
+    onTaskChange: (String) -> Unit,
+    priority: Int,
+    onPriorityChange: (Int) -> Unit,
+    dueDate: Date?,
+    onDateChange: (Date?) -> Unit,
+    dueTime: Pair<Int, Int>?,
+    onTimeChange: (Pair<Int, Int>?) -> Unit,
+    notify: Boolean,
+    onNotifyChange: (Boolean) -> Unit,
+    reminderOffset: Int,
+    onReminderOffsetChange: (Int) -> Unit,
+    onAddClick: () -> Unit
+) {
+    val context = LocalContext.current
+    val calendar = remember { Calendar.getInstance() }
 
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text("Today's Tasks", fontSize = 20.sp)
+        TextField(
+            value = newTask,
+            onValueChange = onTaskChange,
+            placeholder = { Text("New task") },
+            modifier = Modifier.fillMaxWidth()
+        )
 
-        Row {
-            TextField(
-                value = newTask,
-                onValueChange = { newTask = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("New task") }
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Button(onClick = {
-                if (newTask.isNotBlank()) {
-                    val task = Task(newTask, priority, dueDate, dueTime, notify, reminderOffset)
-                    taskList.add(task)
-                    scheduleReminder(context, task)
-                    newTask = ""
-                    priority = 1
-                    dueDate = null
-                    dueTime = null
-                    notify = false
-                    reminderOffset = 30
-                }
-            }) {
-                Text("Add")
-            }
-        }
+        Text("Priority: $priority")
+        Slider(
+            value = priority.toFloat(),
+            onValueChange = { onPriorityChange(it.toInt()) },
+            valueRange = 1f..5f,
+            steps = 3
+        )
 
-        // Priority Slider
-        Column {
-            Text("Priority: $priority")
-            Slider(
-                value = priority.toFloat(),
-                onValueChange = { priority = it.toInt() },
-                valueRange = 1f..5f,
-                steps = 3
-            )
-        }
-
-        // Pick Due Date
         Button(onClick = {
+            val today = calendar
             DatePickerDialog(
                 context,
-                { _: DatePicker, year: Int, month: Int, dayOfMonth: Int -> // Explicitly type 'view'
+                { _, year, month, dayOfMonth ->
                     calendar.set(year, month, dayOfMonth)
-                    dueDate = calendar.time
+                    onDateChange(calendar.time)
                 },
-                calendar.get(Calendar.YEAR),
-                calendar.get(Calendar.MONTH),
-                calendar.get(Calendar.DAY_OF_MONTH)
+                today.get(Calendar.YEAR),
+                today.get(Calendar.MONTH),
+                today.get(Calendar.DAY_OF_MONTH)
             ).show()
         }) {
             Text(
                 if (dueDate != null)
-                    "Due Date: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(dueDate!!)}"
+                    "Due Date: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(dueDate)}"
                 else
                     "Pick Due Date"
             )
         }
 
-        // Pick Due Time
         Button(onClick = {
             val now = Calendar.getInstance()
             TimePickerDialog(
                 context,
-                { _, hourOfDay, minute ->
-                    dueTime = hourOfDay to minute
+                { _, hour, minute ->
+                    onTimeChange(hour to minute)
                 },
                 now.get(Calendar.HOUR_OF_DAY),
                 now.get(Calendar.MINUTE),
@@ -193,7 +310,7 @@ fun ShortTermTaskScreen() {
         }) {
             Text(
                 if (dueTime != null)
-                    "Due Time: %02d:%02d".format(dueTime!!.first, dueTime!!.second)
+                    "Due Time: %02d:%02d".format(dueTime.first, dueTime.second)
                 else
                     "Pick Due Time"
             )
@@ -201,13 +318,11 @@ fun ShortTermTaskScreen() {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Notify me", modifier = Modifier.weight(1f))
-            Switch(checked = notify, onCheckedChange = { notify = it })
+            Switch(checked = notify, onCheckedChange = onNotifyChange)
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
         Text("Reminder time before due:")
-        val offsetOptions = listOf(5, 10, 30, 60, 180, 1440) // up to 24 hours (in mins)
+        val offsetOptions = listOf(5, 10, 30, 60, 180, 1440)
         var expanded by remember { mutableStateOf(false) }
 
         Box {
@@ -219,43 +334,25 @@ fun ShortTermTaskScreen() {
                 onDismissRequest = { expanded = false }
             ) {
                 offsetOptions.forEach { minutes ->
-                    DropdownMenuItem(onClick = {
-                        reminderOffset = minutes
-                        expanded = false
-                    }, text = { Text("$minutes minutes before") })
+                    DropdownMenuItem(
+                        onClick = {
+                            onReminderOffsetChange(minutes)
+                            expanded = false
+                        },
+                        text = { Text("$minutes minutes before") }
+                    )
                 }
             }
         }
 
+        Spacer(modifier = Modifier.height(16.dp))
 
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            taskList.forEachIndexed { index, task ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val dateText = task.dueDate?.let {
-                        SimpleDateFormat("dd/MM", Locale.getDefault()).format(it)
-                    } ?: "No date"
-
-                    val timeText = task.dueTime?.let {
-                        "%02d:%02d".format(it.first, it.second)
-                    } ?: "No time"
-
-                    Text(
-                        "${task.title} (P${task.priority}, $dateText $timeText)",
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { taskList.removeAt(index) }) {
-                        Icon(Icons.Default.Delete, contentDescription = "Delete")
-                    }
-                }
-            }
+        Button(onClick = onAddClick, modifier = Modifier.fillMaxWidth()) {
+            Text("Add Task")
         }
     }
 }
+
 
 fun scheduleReminder(context: Context, task: Task) {
     if (!task.notify) return // User selects notification or not
