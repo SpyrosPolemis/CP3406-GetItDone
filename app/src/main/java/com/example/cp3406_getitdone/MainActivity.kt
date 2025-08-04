@@ -16,8 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.tooling.preview.Preview
-import android.widget.DatePicker
 import java.util.Locale
 import java.util.Date
 import kotlin.text.format
@@ -36,10 +34,17 @@ import android.widget.Toast
 import androidx.compose.material.icons.filled.Delete
 import kotlinx.coroutines.launch
 import androidx.compose.material.icons.filled.Add
-
-
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.ViewModelProvider
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var db: AppDatabase
+    private lateinit var taskDao: TaskDao
+    private lateinit var taskViewModel: TaskViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -49,15 +54,21 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        db = AppDatabase.getDatabase(applicationContext)
+        taskDao = db.taskDao()
+
+        val repository = TaskRepository(taskDao)
+        val factory = TaskViewModelFactory(repository)
+        taskViewModel = ViewModelProvider(this, factory)[TaskViewModel::class.java]
+
         setContent {
-            SimpleApp()
+            SimpleApp(taskViewModel) // pass the ViewModel here instead of DAO
         }
     }
 }
 
-
 @Composable
-fun SimpleApp() {
+fun SimpleApp(taskViewModel: TaskViewModel) {
     var selectedScreen by remember { mutableIntStateOf(0) }
 
     Scaffold(
@@ -86,7 +97,7 @@ fun SimpleApp() {
     ) { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (selectedScreen) {
-                0 -> ShortTermTaskScreen()
+                0 -> ShortTermTaskScreen(taskViewModel)
                 1 -> PlaceholderScreen("Goals & Habits Coming Soon")
                 2 -> PlaceholderScreen("Focus Mode Coming Soon")
             }
@@ -103,20 +114,18 @@ data class Task(
     val reminderOffsetMinutes: Int = 30 // default to 30 minutes before
 )
 
-
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun ShortTermTaskScreen() {
-    val taskList = remember { mutableStateListOf<Task>() }
+fun ShortTermTaskScreen(taskViewModel: TaskViewModel) {
+    val coroutineScope = rememberCoroutineScope()
+    val taskListState by taskViewModel.allTasks.collectAsState(initial = emptyList())
+
     var newTask by remember { mutableStateOf("") }
-    var priority by remember { mutableIntStateOf(1) }
-    var notify by remember { mutableStateOf(false) }
-    var reminderOffset by remember { mutableIntStateOf(30) }
-
-    val calendar = remember { Calendar.getInstance() }
+    var priority by remember { mutableStateOf(1) }
     var dueDate by remember { mutableStateOf<Date?>(null) }
-    var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) }
-
+    var dueTime by remember { mutableStateOf<Pair<Int, Int>?>(null) } // hour, minute
+    var notify by remember { mutableStateOf(false) }
+    var reminderOffset by remember { mutableStateOf(30) }
     val context = LocalContext.current
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -147,20 +156,29 @@ fun ShortTermTaskScreen() {
                 onReminderOffsetChange = { reminderOffset = it },
                 onAddClick = {
                     if (newTask.isNotBlank()) {
-                        val task = Task(newTask, priority, dueDate, dueTime, notify, reminderOffset)
-                        taskList.add(task)
-                        scheduleReminder(context, task)
+                        coroutineScope.launch {
+                            val entity = TaskEntity(
+                                title = newTask,
+                                priority = priority,
+                                dueDate = dueDate,
+                                dueTime = dueTime,
+                                notify = notify,
+                                reminderOffsetMinutes = reminderOffset
+                            )
+                            taskViewModel.insertTask(entity)
+                            scheduleReminder(context, entity.toTask()) // You will need a conversion function
 
-                        // Reset form
-                        newTask = ""
-                        priority = 1
-                        dueDate = null
-                        dueTime = null
-                        notify = false
-                        reminderOffset = 30
+                            // Reset form
+                            newTask = ""
+                            priority = 1
+                            dueDate = null
+                            dueTime = null
+                            notify = false
+                            reminderOffset = 30
 
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            showBottomSheet = false
+                            scope.launch { sheetState.hide() }.invokeOnCompletion {
+                                showBottomSheet = false
+                            }
                         }
                     }
                 }
@@ -168,10 +186,13 @@ fun ShortTermTaskScreen() {
         }
     }
 
-    // Main content with FAB
     MainTaskList(
-        taskList = taskList,
-        onDelete = { index -> taskList.removeAt(index) },
+        taskList = taskListState.map { it.toTask() }, // Convert entity to your Task data class
+        onDelete = { index ->
+            coroutineScope.launch {
+                taskViewModel.deleteTask(taskListState[index])
+            }
+        },
         onFabClick = {
             showBottomSheet = true
             scope.launch { sheetState.show() }
@@ -198,11 +219,10 @@ fun MainTaskList(
                 }
             }
 
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                taskList
-                    .sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
+                taskList.sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
                     .forEachIndexed { index, task ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -216,9 +236,7 @@ fun MainTaskList(
                                 "%02d:%02d".format(it.first, it.second)
                             } ?: "No time"
 
-                            val notifText = if (task.notify)
-                                "🔔 ${task.reminderOffsetMinutes} min"
-                            else ""
+                            val notifText = if (task.notify) "🔔 ${task.reminderOffsetMinutes} min" else ""
 
                             Text(
                                 "${task.title} (P${task.priority}, $dateText $timeText) $notifText",
@@ -233,6 +251,21 @@ fun MainTaskList(
         }
     }
 }
+
+
+// You'll need to create this extension function to convert from TaskEntity to Task data class
+fun TaskEntity.toTask() = Task(
+    title = this.title,
+    priority = this.priority,
+    dueDate = this.dueDate,
+    dueTime = this.dueTime,
+    notify = this.notify,
+    reminderOffsetMinutes = this.reminderOffsetMinutes
+)
+
+// The rest of your code remains unchanged: TaskInputForm, scheduleReminder, PlaceholderScreen, DefaultPreview
+
+
 
 
 @Composable
@@ -405,8 +438,8 @@ fun PlaceholderScreen(text: String) {
     }
 }
 
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    SimpleApp()
-}
+//@Preview(showBackground = true)
+//@Composable
+//fun DefaultPreview() {
+//    SimpleApp()
+//}
