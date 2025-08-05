@@ -42,19 +42,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 import android.media.AudioManager
 import android.media.ToneGenerator
-import androidx.compose.runtime.*
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.*
 import kotlinx.coroutines.*
 
 
@@ -88,7 +80,7 @@ class MainActivity : ComponentActivity() {
         goalViewModel = ViewModelProvider(this, goalFactory)[GoalViewModel::class.java]
 
         setContent {
-            SimpleApp(taskViewModel, goalViewModel) // pass the ViewModel here instead of DAO
+            SimpleApp(taskViewModel, goalViewModel)
         }
     }
 }
@@ -192,7 +184,7 @@ fun ShortTermTaskScreen(taskViewModel: TaskViewModel) {
                                 reminderOffsetMinutes = reminderOffset
                             )
                             taskViewModel.insertTask(entity)
-                            scheduleReminder(context, entity.toTask()) // You will need a conversion function
+                            scheduleReminder(context, entity.toTask())
 
                             // Reset form
                             newTask = ""
@@ -213,7 +205,7 @@ fun ShortTermTaskScreen(taskViewModel: TaskViewModel) {
     }
 
     MainTaskList(
-        taskList = taskListState.map { it.toTask() }, // Convert entity to your Task data class
+        taskList = taskListState.map { it.toTask() },
         onDelete = { index ->
             coroutineScope.launch {
                 taskViewModel.deleteTask(taskListState[index])
@@ -250,7 +242,7 @@ fun MainTaskList(
     endOfMonth.add(Calendar.MONTH, 1)
 
     val (dueToday, dueThisWeek, dueThisMonth, later) = taskList.sortedBy { it.dueDate?.time ?: Long.MAX_VALUE }
-        .partitionByTime(today.time, endOfToday.time, endOfWeek.time, endOfMonth.time)
+        .partitionByTime(endOfToday.time, endOfWeek.time, endOfMonth.time)
 
     Column(modifier = Modifier.padding(16.dp)) {
         HeaderWithAddButton("Today's Tasks", onFabClick)
@@ -329,7 +321,6 @@ fun TaskCard(task: Task, onDelete: () -> Unit) {
 }
 
 fun List<Task>.partitionByTime(
-    today: Date,
     endOfToday: Date,
     endOfWeek: Date,
     endOfMonth: Date
@@ -565,7 +556,7 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
         }
     }
 
-    // Detail Sheet
+    // Goal Details Screen
     if (showDetailSheet && selectedGoal != null) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -661,7 +652,7 @@ fun GoalCard(
                     strokeWidth = 5.dp,
                     modifier = Modifier
                         .fillMaxSize()
-                        .offset(y = 3.dp) // Marker please ignore this, this damn circle was stuck to the screen
+                        .offset(y = 3.dp)
                 )
                 Text(
                     "$percentage%",
@@ -826,7 +817,6 @@ fun FocusScreen() {
     var timeLeft by remember { mutableStateOf(focusTimeMinutes * 60) }
     var isFocusing by remember { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     val toneGenerator = remember {
@@ -872,7 +862,7 @@ fun FocusScreen() {
         }
     }
 
-    // Timer coroutine
+    // Timer
     DisposableEffect(isFocusing) {
         val timerJob = if (isFocusing) {
             coroutineScope.launch {
@@ -945,20 +935,3 @@ fun FocusScreen() {
         }
     }
 }
-
-
-@Composable
-fun PlaceholderScreen(text: String) {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text)
-    }
-}
-
-//@Preview(showBackground = true)
-//@Composable
-//fun DefaultPreview() {
-//    SimpleApp()
-//}
