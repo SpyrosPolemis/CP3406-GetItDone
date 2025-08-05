@@ -565,7 +565,7 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
             },
             sheetState = detailSheetState
         ) {
-            GoalDetailSheet(goal = selectedGoal!!)
+            GoalDetailSheet(goal = selectedGoal!!, goalViewModel = goalViewModel)
         }
     }
 
@@ -710,17 +710,58 @@ fun GoalInputForm(
 }
 
 @Composable
-fun GoalDetailSheet(goal: GoalEntity) {
-    Column(modifier = Modifier.padding(16.dp)) {
-        Text("Goal Details", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(8.dp))
-        Text("Title: ${goal.goalTitle}")
-        Text("Due Date: ${goal.goaldueDate}")
-        Text("Habit: ${goal.habitDescription}")
-        Text("Frequency/Week: ${goal.habitFrequencyPerWeek}")
+fun GoalDetailSheet(goal: GoalEntity, goalViewModel: GoalViewModel) {
+    val completions = goalViewModel.getCompletionsThisWeek(goal.id).collectAsState()
+    val totalNeeded = goal.habitFrequencyPerWeek
+    val progress = (completions.value.toFloat() / totalNeeded.toFloat()).coerceIn(0f, 1f)
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(goal.goalTitle, style = MaterialTheme.typography.titleLarge)
+
+        Spacer(Modifier.height(16.dp))
+
+        Text("Due Date", style = MaterialTheme.typography.labelMedium)
+        Text(goal.goaldueDate.toString(), style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(Modifier.height(8.dp))
+
+        Text("Habit", style = MaterialTheme.typography.labelMedium)
+        Text(goal.habitDescription, style = MaterialTheme.typography.bodyLarge)
+
+        Spacer(Modifier.height(8.dp))
+
+        Text("Times per week: ${goal.habitFrequencyPerWeek}", style = MaterialTheme.typography.labelMedium)
+
+        Spacer(Modifier.height(16.dp))
+
+        Text("Progress this week", style = MaterialTheme.typography.labelMedium)
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text("${completions.value} / $totalNeeded completed")
+
+        Spacer(Modifier.height(16.dp))
+
+        Button(
+            onClick = {
+                goalViewModel.markHabitDone(goal.id)
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Mark as Complete")
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Text("Why this goal?", style = MaterialTheme.typography.labelMedium)
+        Text(goal.goalReason, style = MaterialTheme.typography.bodyLarge)
     }
 }
-
 
 
 @Composable
