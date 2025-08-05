@@ -12,6 +12,7 @@ import java.util.Calendar
 import java.util.Date
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.first
 
 class GoalViewModel(private val repository: GoalRepository, private val habitRepository: HabitRepository) : ViewModel() {
 
@@ -22,16 +23,19 @@ class GoalViewModel(private val repository: GoalRepository, private val habitRep
     private val _weeklyCompletions = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val weeklyCompletions: StateFlow<Map<Int, Int>> = _weeklyCompletions
 
+    private var lastLoadedWeek = -1
+
     fun getCompletionsThisWeek(goalId: Int): StateFlow<Int> {
         return weeklyCompletions.map { it[goalId] ?: 0 }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(), 0)
     }
 
     fun markHabitDone(goalId: Int) {
         viewModelScope.launch {
+            refreshWeeklyCompletions()
+
             val completion = HabitCompletion(goalId = goalId, date = Date())
             habitRepository.insertHabitCompletion(completion)
 
-            // Immediately update completions map
             val currentMap = _weeklyCompletions.value.toMutableMap()
             val currentCount = currentMap[goalId] ?: 0
             currentMap[goalId] = currentCount + 1
@@ -69,9 +73,15 @@ class GoalViewModel(private val repository: GoalRepository, private val habitRep
     }
 
     init {
+        refreshWeeklyCompletions()
+    }
+    fun refreshWeeklyCompletions() {
         viewModelScope.launch {
-            repository.allGoals.collect { goals ->
+            val calendar = Calendar.getInstance().apply { firstDayOfWeek = Calendar.MONDAY }
+            val currentWeek = calendar.get(Calendar.WEEK_OF_YEAR)
+            if (currentWeek != lastLoadedWeek) {
                 val (start, end) = getCurrentWeekDates()
+                val goals = repository.allGoals.first()
                 val completionsMap = mutableMapOf<Int, Int>()
                 goals.forEach { goal ->
                     val count = habitRepository.getCompletionsBetween(goal.id, start, end)
@@ -79,9 +89,12 @@ class GoalViewModel(private val repository: GoalRepository, private val habitRep
                     completionsMap[goal.id] = count
                 }
                 _weeklyCompletions.value = completionsMap
+                lastLoadedWeek = currentWeek
             }
         }
     }
+
+
 
 }
 
