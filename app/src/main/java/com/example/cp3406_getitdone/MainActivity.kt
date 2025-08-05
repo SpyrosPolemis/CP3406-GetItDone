@@ -13,6 +13,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import android.media.AudioManager
+import android.media.ToneGenerator
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -41,6 +43,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.ViewModelProvider
 import androidx.compose.foundation.lazy.items
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.ProcessLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 
 
 class MainActivity : ComponentActivity() {
@@ -109,7 +118,7 @@ fun SimpleApp(taskViewModel: TaskViewModel, goalViewModel: GoalViewModel) {
             when (selectedScreen) {
                 0 -> ShortTermTaskScreen(taskViewModel)
                 1 -> GoalScreen(goalViewModel)
-                2 -> PlaceholderScreen("Focus Mode Coming Soon")
+                2 -> FocusScreen()
             }
         }
     }
@@ -801,6 +810,59 @@ fun GoalDetailSheet(goal: GoalEntity, goalViewModel: GoalViewModel) {
 
         Text("Why this goal?", style = MaterialTheme.typography.labelMedium)
         Text(goal.goalReason, style = MaterialTheme.typography.bodyLarge)
+    }
+}
+
+
+@Composable
+fun FocusScreen() {
+    var timeLeft by remember { mutableStateOf(600) } // 10 minutes
+    var isFocusing by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(isFocusing) {
+        if (isFocusing) {
+            val timerJob = CoroutineScope(Dispatchers.Main).launch {
+                while (timeLeft > 0) {
+                    delay(1000L)
+                    timeLeft--
+                }
+                isFocusing = false
+            }
+
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_STOP && timeLeft > 0) {
+                    // Consequence: play tone if user leaves app
+                    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
+                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                }
+            }
+
+            ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
+
+            onDispose {
+                timerJob.cancel()
+                ProcessLifecycleOwner.get().lifecycle.removeObserver(observer)
+            }
+        } else {
+            onDispose { }
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text("Time left: ${timeLeft}s")
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = {
+            isFocusing = true
+            timeLeft = 600
+        }) {
+            Text("Start Focus")
+        }
     }
 }
 
