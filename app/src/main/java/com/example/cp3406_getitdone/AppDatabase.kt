@@ -6,11 +6,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 
-@Database(entities = [TaskEntity::class, GoalEntity::class], version = 2)
+@Database(entities = [TaskEntity::class, GoalEntity::class, HabitCompletion::class], version = 3)
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun taskDao(): TaskDao
     abstract fun goalDao(): GoalDao
+    abstract fun habitCompletionDao(): HabitCompletionDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null

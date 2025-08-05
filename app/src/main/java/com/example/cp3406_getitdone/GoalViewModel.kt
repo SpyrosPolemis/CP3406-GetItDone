@@ -8,18 +8,16 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
+import java.util.Calendar
+import java.util.Date
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.firstOrNull
 
-class GoalViewModel(private val repository: GoalRepository) : ViewModel() {
+class GoalViewModel(private val repository: GoalRepository, private val habitRepository: HabitRepository) : ViewModel() {
 
     val allGoals: StateFlow<List<GoalEntity>> = repository.allGoals
         .map { it.sortedByDescending { goal -> goal.goaldueDate } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    private val _selectedGoal = MutableStateFlow<GoalEntity?>(null)
-    val selectedGoal = _selectedGoal.asStateFlow()
 
     private val _weeklyCompletions = MutableStateFlow<Map<Int, Int>>(emptyMap())
     val weeklyCompletions: StateFlow<Map<Int, Int>> = _weeklyCompletions
@@ -29,19 +27,27 @@ class GoalViewModel(private val repository: GoalRepository) : ViewModel() {
     }
 
     fun markHabitDone(goalId: Int) {
-        // your logic to save completion...
-        val current = _weeklyCompletions.value[goalId] ?: 0
-        _weeklyCompletions.value = _weeklyCompletions.value.toMutableMap().apply {
-            this[goalId] = current + 1
+        viewModelScope.launch {
+            val completion = HabitCompletion(goalId = goalId, date = Date())
+            habitRepository.insertHabitCompletion(completion)
+
+            // Immediately update completions map
+            val currentMap = _weeklyCompletions.value.toMutableMap()
+            val currentCount = currentMap[goalId] ?: 0
+            currentMap[goalId] = currentCount + 1
+            _weeklyCompletions.value = currentMap
         }
     }
 
-    fun selectGoal(goal: GoalEntity) {
-        _selectedGoal.value = goal
-    }
 
-    fun clearSelectedGoal() {
-        _selectedGoal.value = null
+    private fun getCurrentWeekDates(): Pair<Date, Date> {
+        val calendar = Calendar.getInstance()
+        calendar.firstDayOfWeek = Calendar.MONDAY
+        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        val start = calendar.time
+        calendar.add(Calendar.DAY_OF_WEEK, 6)
+        val end = calendar.time
+        return Pair(start, end)
     }
 
     fun addGoal(goal: GoalEntity) {
@@ -61,14 +67,30 @@ class GoalViewModel(private val repository: GoalRepository) : ViewModel() {
             repository.delete(goal)
         }
     }
+
+    init {
+        viewModelScope.launch {
+            repository.allGoals.collect { goals ->
+                val (start, end) = getCurrentWeekDates()
+                val completionsMap = mutableMapOf<Int, Int>()
+                goals.forEach { goal ->
+                    val count = habitRepository.getCompletionsBetween(goal.id, start, end)
+                        .firstOrNull() ?: 0
+                    completionsMap[goal.id] = count
+                }
+                _weeklyCompletions.value = completionsMap
+            }
+        }
+    }
+
 }
 
 
-class GoalViewModelFactory(private val repository: GoalRepository) : ViewModelProvider.Factory {
+class GoalViewModelFactory(private val repository: GoalRepository, private val habitRepository: HabitRepository) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(GoalViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return GoalViewModel(repository) as T
+            return GoalViewModel(repository, habitRepository) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }

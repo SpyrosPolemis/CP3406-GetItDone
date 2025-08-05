@@ -67,7 +67,8 @@ class MainActivity : ComponentActivity() {
         taskViewModel = ViewModelProvider(this, factory)[TaskViewModel::class.java]
 
         val goalRepository = GoalRepository(db.goalDao())
-        val goalFactory = GoalViewModelFactory(goalRepository)
+        val habitRepository = HabitRepository(db.habitCompletionDao())
+        val goalFactory = GoalViewModelFactory(goalRepository, habitRepository)
         goalViewModel = ViewModelProvider(this, goalFactory)[GoalViewModel::class.java]
 
         setContent {
@@ -347,7 +348,6 @@ data class Quadruple<A, B, C, D>(
     val fourth: D
 )
 
-// You'll need to create this extension function to convert from TaskEntity to Task data class
 fun TaskEntity.toTask() = Task(
     title = this.title,
     priority = this.priority,
@@ -356,11 +356,6 @@ fun TaskEntity.toTask() = Task(
     notify = this.notify,
     reminderOffsetMinutes = this.reminderOffsetMinutes
 )
-
-// The rest of your code remains unchanged: TaskInputForm, scheduleReminder, PlaceholderScreen, DefaultPreview
-
-
-
 
 @Composable
 fun TaskInputForm(
@@ -533,7 +528,7 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
     var selectedGoal by remember { mutableStateOf<GoalEntity?>(null) }
     var showDetailSheet by remember { mutableStateOf(false) }
 
-    // Input Sheet (Add Goal)
+    // Input Sheet
     if (showInputSheet) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -554,7 +549,7 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
         }
     }
 
-    // Detail Sheet (View/Edit/Track)
+    // Detail Sheet
     if (showDetailSheet && selectedGoal != null) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -590,27 +585,73 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            val goalCompletionsMap by goalViewModel.weeklyCompletions.collectAsState()
+
             LazyColumn {
                 items(goals) { goal ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                selectedGoal = goal
-                                showDetailSheet = true
-                                coroutineScope.launch { detailSheetState.show() }
-                            }
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(goal.goalTitle, style = MaterialTheme.typography.titleMedium)
-                            Text("Due: ${goal.goaldueDate}", style = MaterialTheme.typography.bodySmall)
-                            if (goal.habitDescription.isNotEmpty()) {
-                                Text(goal.habitDescription, style = MaterialTheme.typography.bodyMedium)
-                            }
+                    val completionsThisWeek = goalCompletionsMap[goal.id] ?: 0
+                    GoalCard(
+                        goal = goal,
+                        completionsThisWeek = completionsThisWeek,
+                        onClick = {
+                            selectedGoal = goal
+                            showDetailSheet = true
+                            coroutineScope.launch { detailSheetState.show() }
                         }
-                    }
+                    )
                 }
+            }
+
+        }
+    }
+}
+
+@Composable
+fun GoalCard(
+    goal: GoalEntity,
+    completionsThisWeek: Int,
+    onClick: () -> Unit
+) {
+    val progress = (completionsThisWeek.toFloat() / goal.habitFrequencyPerWeek.toFloat()).coerceIn(0f, 1f)
+    val percentage = (progress * 100).toInt()
+    val formattedDate = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(goal.goaldueDate)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(goal.goalTitle, style = MaterialTheme.typography.titleMedium)
+                Text("Due: $formattedDate", style = MaterialTheme.typography.bodySmall)
+                if (goal.habitDescription.isNotEmpty()) {
+                    Text(goal.habitDescription, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .size(52.dp)
+                    .padding(start = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    strokeWidth = 5.dp,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .offset(y = 3.dp) // Marker please ignore this, this damn circle was stuck to the screen
+                )
+                Text(
+                    "$percentage%",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.align(Alignment.Center)
+                )
             }
         }
     }
