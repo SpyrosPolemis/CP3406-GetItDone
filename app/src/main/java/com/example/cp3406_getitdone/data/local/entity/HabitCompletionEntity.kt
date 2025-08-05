@@ -1,4 +1,4 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.data.local.entity
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey

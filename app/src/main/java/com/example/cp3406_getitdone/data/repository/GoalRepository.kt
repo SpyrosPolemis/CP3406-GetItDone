@@ -1,5 +1,7 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.data.repository
 
+import com.example.cp3406_getitdone.data.local.dao.GoalDao
+import com.example.cp3406_getitdone.data.local.entity.GoalEntity
 import kotlinx.coroutines.flow.Flow
 
 class GoalRepository(private val goalDao: GoalDao) {

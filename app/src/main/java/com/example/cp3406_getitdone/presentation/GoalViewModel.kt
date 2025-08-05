@@ -1,8 +1,12 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.cp3406_getitdone.data.local.entity.HabitCompletion
+import com.example.cp3406_getitdone.data.repository.HabitRepository
+import com.example.cp3406_getitdone.data.local.entity.GoalEntity
+import com.example.cp3406_getitdone.data.repository.GoalRepository
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map

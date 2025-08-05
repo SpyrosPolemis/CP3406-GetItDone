@@ -1,4 +1,4 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.util
 
 import androidx.room.TypeConverter
 import java.util.Date

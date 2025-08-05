@@ -1,6 +1,7 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.data.local.dao
 
 import androidx.room.*
+import com.example.cp3406_getitdone.data.local.entity.TaskEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao

@@ -1,10 +1,17 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.data.local.db
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.example.cp3406_getitdone.util.Converters
+import com.example.cp3406_getitdone.data.local.dao.GoalDao
+import com.example.cp3406_getitdone.data.local.entity.GoalEntity
+import com.example.cp3406_getitdone.data.local.entity.HabitCompletion
+import com.example.cp3406_getitdone.data.local.dao.HabitCompletionDao
+import com.example.cp3406_getitdone.data.local.dao.TaskDao
+import com.example.cp3406_getitdone.data.local.entity.TaskEntity
 
 @Database(entities = [TaskEntity::class, GoalEntity::class, HabitCompletion::class], version = 3)
 @TypeConverters(Converters::class)

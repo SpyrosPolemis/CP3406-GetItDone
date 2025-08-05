@@ -1,6 +1,6 @@
 @file:OptIn(ExperimentalMaterial3Api::class)
 
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.presentation
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -47,6 +47,14 @@ import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.example.cp3406_getitdone.data.local.dao.TaskDao
+import com.example.cp3406_getitdone.data.local.db.AppDatabase
+import com.example.cp3406_getitdone.data.local.entity.GoalEntity
+import com.example.cp3406_getitdone.data.local.entity.TaskEntity
+import com.example.cp3406_getitdone.data.repository.GoalRepository
+import com.example.cp3406_getitdone.data.repository.HabitRepository
+import com.example.cp3406_getitdone.data.repository.TaskRepository
+import com.example.cp3406_getitdone.util.ReminderReceiver
 import kotlinx.coroutines.*
 
 

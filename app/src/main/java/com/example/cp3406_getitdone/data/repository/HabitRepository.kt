@@ -1,5 +1,7 @@
-package com.example.cp3406_getitdone
+package com.example.cp3406_getitdone.data.repository
 
+import com.example.cp3406_getitdone.data.local.dao.HabitCompletionDao
+import com.example.cp3406_getitdone.data.local.entity.HabitCompletion
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
