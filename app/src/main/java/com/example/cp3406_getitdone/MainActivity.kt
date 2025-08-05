@@ -31,6 +31,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.filled.Delete
 import kotlinx.coroutines.launch
@@ -519,79 +520,207 @@ fun scheduleReminder(context: Context, task: Task) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GoalScreen(goalViewModel: GoalViewModel) {
     val goals by goalViewModel.allGoals.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Text("Goals", style = MaterialTheme.typography.headlineMedium)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var showInputSheet by remember { mutableStateOf(false) }
 
-        Spacer(modifier = Modifier.height(8.dp))
+    val detailSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var selectedGoal by remember { mutableStateOf<GoalEntity?>(null) }
+    var showDetailSheet by remember { mutableStateOf(false) }
 
-        LazyColumn {
-            items(goals) { goal ->
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text(goal.goalTitle, style = MaterialTheme.typography.titleMedium)
-                        Text("Due: ${goal.goaldueDate}", style = MaterialTheme.typography.bodySmall)
-                        if (!goal.habitDescription.isNullOrEmpty()) {
-                            Text(goal.habitDescription, style = MaterialTheme.typography.bodyMedium)
+    // Input Sheet (Add Goal)
+    if (showInputSheet) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                    showInputSheet = false
+                }
+            },
+            sheetState = sheetState
+        ) {
+            GoalInputForm(
+                onAddGoal = { goal ->
+                    goalViewModel.addGoal(goal)
+                    coroutineScope.launch { sheetState.hide() }.invokeOnCompletion {
+                        showInputSheet = false
+                    }
+                }
+            )
+        }
+    }
+
+    // Detail Sheet (View/Edit/Track)
+    if (showDetailSheet && selectedGoal != null) {
+        ModalBottomSheet(
+            onDismissRequest = {
+                coroutineScope.launch { detailSheetState.hide() }.invokeOnCompletion {
+                    showDetailSheet = false
+                    selectedGoal = null
+                }
+            },
+            sheetState = detailSheetState
+        ) {
+            GoalDetailSheet(goal = selectedGoal!!)
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Goals", style = MaterialTheme.typography.headlineMedium)
+                IconButton(onClick = {
+                    showInputSheet = true
+                    coroutineScope.launch { sheetState.show() }
+                }) {
+                    Icon(Icons.Default.Add, contentDescription = "Add Goal")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LazyColumn {
+                items(goals) { goal ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                            .clickable {
+                                selectedGoal = goal
+                                showDetailSheet = true
+                                coroutineScope.launch { detailSheetState.show() }
+                            }
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text(goal.goalTitle, style = MaterialTheme.typography.titleMedium)
+                            Text("Due: ${goal.goaldueDate}", style = MaterialTheme.typography.bodySmall)
+                            if (goal.habitDescription.isNotEmpty()) {
+                                Text(goal.habitDescription, style = MaterialTheme.typography.bodyMedium)
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(16.dp))
 
-        // Add Goal Form
-        var title by remember { mutableStateOf("") }
-        var dueDate by remember { mutableStateOf<Date?>(null) }
-        var habitDesc by remember { mutableStateOf("") }
-        var freqPerWeek by remember { mutableStateOf(3) }
-        var reason by remember { mutableStateOf("") }
+@Composable
+fun GoalInputForm(
+    onAddGoal: (GoalEntity) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var dueDate by remember { mutableStateOf<Date?>(null) }
+    var habitDesc by remember { mutableStateOf("") }
+    var freqPerWeek by remember { mutableStateOf(3) }
+    var reason by remember { mutableStateOf("") }
 
+    val context = LocalContext.current
+    val calendar = remember { Calendar.getInstance() }
+
+    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         OutlinedTextField(
             value = title,
             onValueChange = { title = it },
-            label = { Text("Goal Title") },
+            label = { Text("Title - What do you want to do?") },
             modifier = Modifier.fillMaxWidth()
         )
+
+        Button(onClick = {
+            val today = calendar
+            DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    calendar.set(year, month, dayOfMonth)
+                    dueDate = calendar.time
+                },
+                today.get(Calendar.YEAR),
+                today.get(Calendar.MONTH),
+                today.get(Calendar.DAY_OF_MONTH)
+            ).show()
+        }) {
+            Text(
+                if (dueDate != null)
+                    "Due Date: ${SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(dueDate!!)}"
+                else
+                    "Pick Due Date"
+            )
+        }
 
         OutlinedTextField(
             value = habitDesc,
             onValueChange = { habitDesc = it },
-            label = { Text("Notes (Optional)") },
+            label = { Text("Habit - How are you going to achieve it?") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+
+        Text("Times per week: $freqPerWeek")
+        Slider(
+            value = freqPerWeek.toFloat(),
+            onValueChange = { freqPerWeek = it.toInt() },
+            valueRange = 1f..7f,
+            steps = 5
+        )
+
+        OutlinedTextField(
+            value = reason,
+            onValueChange = { reason = it },
+            label = { Text("Reason - Why do you want to do this?") },
             modifier = Modifier.fillMaxWidth()
         )
 
         Button(
             onClick = {
-                val goal = GoalEntity(
-                    goalTitle = title,
-                    goaldueDate = dueDate ?: Date(),
-                    habitDescription = habitDesc,
-                    habitFrequencyPerWeek = freqPerWeek,
-                    goalReason = reason
-                )
-                goalViewModel.addGoal(goal)
+                if (title.isNotBlank()) {
+                    val goal = GoalEntity(
+                        goalTitle = title,
+                        goaldueDate = dueDate ?: Date(),
+                        habitDescription = habitDesc,
+                        habitFrequencyPerWeek = freqPerWeek,
+                        goalReason = reason
+                    )
+                    onAddGoal(goal)
+
+                    // Reset fields
+                    title = ""
+                    dueDate = null
+                    habitDesc = ""
+                    freqPerWeek = 3
+                    reason = ""
+                }
             },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text("Add Goal")
         }
     }
 }
+
+@Composable
+fun GoalDetailSheet(goal: GoalEntity) {
+    Column(modifier = Modifier.padding(16.dp)) {
+        Text("Goal Details", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Title: ${goal.goalTitle}")
+        Text("Due Date: ${goal.goaldueDate}")
+        Text("Habit: ${goal.habitDescription}")
+        Text("Frequency/Week: ${goal.habitFrequencyPerWeek}")
+    }
+}
+
 
 
 @Composable
