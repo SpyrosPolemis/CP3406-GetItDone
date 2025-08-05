@@ -12,10 +12,6 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import android.media.AudioManager
-import android.media.ToneGenerator
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.util.Locale
@@ -47,9 +43,20 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import android.media.AudioManager
+import android.media.ToneGenerator
+import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.*
+import kotlinx.coroutines.*
+
 
 
 class MainActivity : ComponentActivity() {
@@ -813,40 +820,78 @@ fun GoalDetailSheet(goal: GoalEntity, goalViewModel: GoalViewModel) {
     }
 }
 
-
 @Composable
 fun FocusScreen() {
-    var timeLeft by remember { mutableStateOf(600) } // 10 minutes
+    var focusTimeMinutes by remember { mutableStateOf(10) }
+    var timeLeft by remember { mutableStateOf(focusTimeMinutes * 60) }
     var isFocusing by remember { mutableStateOf(false) }
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
 
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    val toneGenerator = remember {
+        ToneGenerator(AudioManager.STREAM_ALARM, 100)
+    }
+
+    // Manage beep job lifecycle separately
+    var beepJob by remember { mutableStateOf<Job?>(null) }
+
+    // Lifecycle observer to start/stop beep loop
+    DisposableEffect(Unit) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_STOP -> {
+                    if (isFocusing && timeLeft > 0) {
+                        // Start looping beep
+                        beepJob = coroutineScope.launch {
+                            while (isActive && isFocusing && timeLeft > 0) {
+                                toneGenerator.startTone(ToneGenerator.TONE_PROP_BEEP)
+                                delay(500)
+                                toneGenerator.stopTone()
+                                delay(1000)
+                            }
+                        }
+                    }
+                }
+                Lifecycle.Event.ON_START -> {
+                    // Stop beep when app is foreground
+                    beepJob?.cancel()
+                    beepJob = null
+                    toneGenerator.stopTone()
+                }
+                else -> {}
+            }
+        }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
+
+        onDispose {
+            ProcessLifecycleOwner.get().lifecycle.removeObserver(observer)
+            beepJob?.cancel()
+            toneGenerator.stopTone()
+            toneGenerator.release()
+        }
+    }
+
+    // Timer coroutine
     DisposableEffect(isFocusing) {
-        if (isFocusing) {
-            val timerJob = CoroutineScope(Dispatchers.Main).launch {
-                while (timeLeft > 0) {
+        val timerJob = if (isFocusing) {
+            coroutineScope.launch {
+                while (timeLeft > 0 && isFocusing) {
                     delay(1000L)
                     timeLeft--
                 }
-                isFocusing = false
-            }
-
-            val observer = LifecycleEventObserver { _, event ->
-                if (event == Lifecycle.Event.ON_STOP && timeLeft > 0) {
-                    // Consequence: play tone if user leaves app
-                    val toneGen = ToneGenerator(AudioManager.STREAM_ALARM, 100)
-                    toneGen.startTone(ToneGenerator.TONE_PROP_BEEP, 200)
+                if (timeLeft <= 0) {
+                    isFocusing = false
+                    // stop beep when timer ends
+                    beepJob?.cancel()
+                    beepJob = null
+                    toneGenerator.stopTone()
                 }
             }
+        } else null
 
-            ProcessLifecycleOwner.get().lifecycle.addObserver(observer)
-
-            onDispose {
-                timerJob.cancel()
-                ProcessLifecycleOwner.get().lifecycle.removeObserver(observer)
-            }
-        } else {
-            onDispose { }
+        onDispose {
+            timerJob?.cancel()
         }
     }
 
@@ -855,13 +900,48 @@ fun FocusScreen() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text("Time left: ${timeLeft}s")
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = {
-            isFocusing = true
-            timeLeft = 600
-        }) {
-            Text("Start Focus")
+        Text("Set Focus Time (minutes):")
+        Slider(
+            value = focusTimeMinutes.toFloat(),
+            onValueChange = {
+                if (!isFocusing) {
+                    focusTimeMinutes = it.toInt()
+                    timeLeft = focusTimeMinutes * 60
+                }
+            },
+            valueRange = 1f..120f,
+            steps = 119,
+            modifier = Modifier.padding(horizontal = 32.dp)
+        )
+        Text("$focusTimeMinutes minutes", fontSize = 18.sp)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text("Time left: ${timeLeft / 60}m ${timeLeft % 60}s", fontSize = 32.sp)
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Button(
+                onClick = { if (!isFocusing && timeLeft > 0) isFocusing = true },
+                enabled = !isFocusing && timeLeft > 0
+            ) {
+                Text("Start")
+            }
+            Button(
+                onClick = { isFocusing = false },
+                enabled = isFocusing
+            ) {
+                Text("Stop")
+            }
+            Button(
+                onClick = {
+                    isFocusing = false
+                    timeLeft = focusTimeMinutes * 60
+                }
+            ) {
+                Text("Reset")
+            }
         }
     }
 }
