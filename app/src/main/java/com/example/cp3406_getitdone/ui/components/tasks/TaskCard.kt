@@ -19,13 +19,26 @@ import androidx.compose.ui.unit.dp
 import com.example.cp3406_getitdone.domain.Task
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.ui.graphics.Color
+
+val priorityColors = listOf(
+    Color(0xFFEDE7F6), // Priority 1 - light lavender
+    Color(0xFFD1C4E9), // Priority 2
+    Color(0xFFB39DDB), // Priority 3
+    Color(0xFF9575CD), // Priority 4
+    Color(0xFF673AB7), // Priority 5 - deep purple
+)
 
 @Composable
 fun TaskCard(task: Task, onDelete: () -> Unit) {
+    val bgColor = priorityColors.getOrElse(task.priority - 1) { Color.LightGray }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = bgColor)
     ) {
         Row(
             modifier = Modifier
