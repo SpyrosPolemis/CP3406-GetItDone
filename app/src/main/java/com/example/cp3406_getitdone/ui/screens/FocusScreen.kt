@@ -29,6 +29,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
+import org.json.JSONArray
 
 @Composable
 fun FocusScreen() {
@@ -44,6 +50,13 @@ fun FocusScreen() {
 
     // Manage beep job lifecycle separately
     var beepJob by remember { mutableStateOf<Job?>(null) }
+
+    var quoteText by remember { mutableStateOf("Loading inspirational quote...") }
+
+    // Fetch quote when screen loads
+    LaunchedEffect(Unit) {
+        quoteText = fetchRandomQuote()
+    }
 
     // Lifecycle observer to start/stop beep loop
     DisposableEffect(Unit) {
@@ -153,6 +166,33 @@ fun FocusScreen() {
             ) {
                 Text("Reset")
             }
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Text(quoteText, fontSize = 14.sp, modifier = Modifier.padding(16.dp))
+    }
+}
+
+suspend fun fetchRandomQuote(): String {
+    return withContext(Dispatchers.IO) {
+        try {
+            val url = URL("https://zenquotes.io/api/today")
+            val connection = url.openConnection() as HttpURLConnection
+            connection.requestMethod = "GET"
+
+            if (connection.responseCode == 200) {
+                val response = connection.inputStream.bufferedReader().readText()
+                val jsonArray = JSONArray(response)
+                val jsonObject = jsonArray.getJSONObject(0)
+                val quote = jsonObject.getString("q")
+                val author = jsonObject.getString("a")
+                "\"$quote\" — $author"
+            } else {
+                "Failed to load quote."
+            }
+        } catch (e: Exception) {
+            "Error loading quote."
         }
     }
 }
