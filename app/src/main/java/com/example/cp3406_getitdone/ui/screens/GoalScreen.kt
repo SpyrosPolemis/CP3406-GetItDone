@@ -103,6 +103,9 @@ fun GoalScreen(goalViewModel: GoalViewModel) {
                             selectedGoal = goal
                             showDetailSheet = true
                             coroutineScope.launch { detailSheetState.show() }
+                        },
+                        onDelete = {
+                            goalViewModel.deleteGoal(goal)
                         }
                     )
                 }

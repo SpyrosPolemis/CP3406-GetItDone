@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -25,7 +28,8 @@ import java.util.Locale
 fun GoalCard(
     goal: GoalEntity,
     completionsThisWeek: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDelete: () -> Unit
 ) {
     val progress = (completionsThisWeek.toFloat() / goal.habitFrequencyPerWeek.toFloat()).coerceIn(0f, 1f)
     val percentage = (progress * 100).toInt()
@@ -66,6 +70,12 @@ fun GoalCard(
                     "$percentage%",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.align(Alignment.Center)
+                )
+            }
+            IconButton(onClick = onDelete) {
+                Icon(
+                    imageVector = androidx.compose.material.icons.Icons.Default.Delete,
+                    contentDescription = "Delete goal"
                 )
             }
         }
