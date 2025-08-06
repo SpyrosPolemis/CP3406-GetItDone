@@ -1,11 +1,8 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package com.example.cp3406_getitdone.presentation
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.material3.*
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.lifecycle.ViewModelProvider

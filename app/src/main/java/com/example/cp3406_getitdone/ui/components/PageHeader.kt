@@ -1,4 +1,4 @@
-package com.example.cp3406_getitdone.ui.components.tasks
+package com.example.cp3406_getitdone.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun HeaderWithAddButton(title: String, onFabClick: () -> Unit) {
+fun PageHeader(title: String, onFabClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,

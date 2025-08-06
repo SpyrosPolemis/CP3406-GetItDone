@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.example.cp3406_getitdone.domain.Task
 import com.example.cp3406_getitdone.domain.partitionByTime
+import com.example.cp3406_getitdone.ui.components.PageHeader
 import java.util.Calendar
 
 @Composable
@@ -37,7 +38,7 @@ fun MainTaskList(
         .partitionByTime(endOfToday.time, endOfWeek.time, endOfMonth.time)
 
     Column(modifier = Modifier.padding(16.dp)) {
-        HeaderWithAddButton("Today's Tasks", onFabClick)
+        PageHeader("Tasks", onFabClick)
         TaskSection("Due Today", dueToday, onDelete)
         TaskSection("Due This Week", dueThisWeek, onDelete, startIndex = dueToday.size)
         TaskSection(
